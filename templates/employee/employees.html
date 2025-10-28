@@ -418,11 +418,11 @@
                                 <td>
                                     {% if employee.salary_type == 'per_month' %}
                                     <span class="badge salary-badge text-white">
-                                        ₹{{ "%.2f"|format(employee.monthly_salary|float if employee.monthly_salary else 0) }}/month
+                                        ₹{{ "%.2f"|format(employee.monthly_salary if employee.monthly_salary else 0) }}/month
                                     </span>
                                     {% else %}
                                     <span class="badge salary-badge text-white">
-                                        ₹{{ "%.2f"|format(employee.per_day_salary|float if employee.per_day_salary else 350.00) }}/day
+                                        ₹{{ "%.2f"|format(employee.per_day_salary if employee.per_day_salary else 350.00) }}/day
                                     </span>
                                     {% endif %}
                                 </td>
@@ -508,9 +508,9 @@
                                             <br>
                                             <i class="fas fa-money-bill me-1"></i>
                                             {% if employee.salary_type == 'per_month' %}
-                                                ₹{{ "%.2f"|format(employee.monthly_salary|float if employee.monthly_salary else 0) }}/month
+                                                ₹{{ "%.2f"|format(employee.monthly_salary if employee.monthly_salary else 0) }}/month
                                             {% else %}
-                                                ₹{{ "%.2f"|format(employee.per_day_salary|float if employee.per_day_salary else 350.00) }}/day
+                                                ₹{{ "%.2f"|format(employee.per_day_salary if employee.per_day_salary else 350.00) }}/day
                                             {% endif %}
                                         </small>
                                     </p>
