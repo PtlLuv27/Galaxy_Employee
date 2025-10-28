@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta
 # from dotenv import load_dotenv
 
 # # Load environment variables from .env file
@@ -26,3 +27,5 @@ class Config:
     MAIL_USERNAME = os.getenv('MAIL_USERNAME', 'luvpatel2707@gmail.com')
     MAIL_PASSWORD = os.getenv('MAIL_PASSWORD', 'sjom tnkn atbx qisb')
     MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER', 'luvpatel2707@gmail.com')
+
+    PERMANENT_SESSION_LIFETIME = timedelta(days=30)

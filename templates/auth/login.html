@@ -277,6 +277,40 @@
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('email').focus();
         });
+
+        // Remember me functionality - restore checkbox state
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if browser supports localStorage
+    if (typeof(Storage) !== "undefined") {
+        // Restore remember me state
+        const rememberMe = localStorage.getItem('rememberMe');
+        const email = localStorage.getItem('rememberedEmail');
+        
+        if (rememberMe === 'true') {
+            document.getElementById('remember').checked = true;
+        }
+        
+        if (email && !document.getElementById('email').value) {
+            document.getElementById('email').value = email;
+        }
+    }
+});
+
+// Save remember me state when form is submitted
+document.querySelector('form').addEventListener('submit', function() {
+    if (typeof(Storage) !== "undefined") {
+        const rememberMe = document.getElementById('remember').checked;
+        const email = document.getElementById('email').value;
+        
+        localStorage.setItem('rememberMe', rememberMe);
+        if (rememberMe && email) {
+            localStorage.setItem('rememberedEmail', email);
+        } else {
+            localStorage.removeItem('rememberedEmail');
+        }
+    }
+});
     </script>
+    
 </body>
 </html>

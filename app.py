@@ -8,10 +8,14 @@ from datetime import datetime, timedelta
 import secrets
 from werkzeug.utils import secure_filename
 from PIL import Image
+from datetime import datetime, timedelta
 import math
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Session configuration for remember me functionality
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)  # 30 days for remember me
 
 mysql = MySQL(app)
 mail = Mail(app)
@@ -46,6 +50,45 @@ def save_profile_image(file):
         return filename
     return None
 
+def check_session_security():
+    """Check session security and handle potential hijacking"""
+    if 'user_id' in session:
+        # Check if user agent matches (basic protection)
+        current_user_agent = request.headers.get('User-Agent', '')
+        if 'user_agent' not in session:
+            session['user_agent'] = current_user_agent
+        elif session['user_agent'] != current_user_agent:
+            # Potential session hijacking - log out user
+            session.clear()
+            flash('Security alert: Session terminated due to suspicious activity.', 'error')
+            return redirect(url_for('login'))
+    
+    return None
+
+# Security checks before each request
+@app.before_request
+def security_checks():
+    """Run security checks before each request"""
+    # Make session permanent for remembered users
+    if 'user_id' in session and session.get('permanent', False):
+        session.permanent = True
+    
+    # Check session security
+    security_result = check_session_security()
+    if security_result:
+        return security_result
+
+@app.before_request
+def make_session_permanent():
+    """Make session permanent for remembered users"""
+    if 'user_id' in session and session.get('permanent', False):
+        session.permanent = True
+        # Refresh the session if it's about to expire (within 7 days)
+        if 'session_refresh' not in session:
+            session['session_refresh'] = datetime.now()
+        elif (datetime.now() - session['session_refresh']).days >= 7:
+            session['session_refresh'] = datetime.now()
+
 # Routes
 @app.route('/')
 def index():
@@ -62,6 +105,7 @@ def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
+        remember_me = 'remember' in request.form  # Check if remember me is checked
         
         cur = mysql.connection.cursor()
         cur.execute("SELECT * FROM users WHERE email = %s", (email,))
@@ -70,10 +114,33 @@ def login():
         
         if user:
             if check_password(password, user[2]):  # user[2] is the password field
+                # Set session data
                 session['user_id'] = user[0]
                 session['user_name'] = user[3]
                 session['user_email'] = user[1]
-                flash('Login successful! Welcome back!', 'success')
+                session['user_agent'] = request.headers.get('User-Agent', '')
+                session['login_time'] = datetime.now().isoformat()
+                
+                # Implement remember me functionality
+                if remember_me:
+                    # Make the session permanent
+                    session.permanent = True
+                    session['permanent'] = True  # Custom flag for our logic
+                    session['session_refresh'] = datetime.now()
+                    flash('Login successful! You will stay logged in for 30 days.', 'success')
+                else:
+                    # Session expires when browser closes
+                    session.permanent = False
+                    session['permanent'] = False
+                    flash('Login successful! Welcome back!', 'success')
+                
+                # Log login activity (optional)
+                print(f"User {user[3]} logged in with remember_me: {remember_me}")
+                
+                # Check if there's a next parameter for redirect
+                next_page = request.args.get('next')
+                if next_page:
+                    return redirect(next_page)
                 return redirect(url_for('dashboard'))
             else:
                 # Wrong password
@@ -131,6 +198,9 @@ def register():
             session['user_id'] = user_id
             session['user_name'] = name
             session['user_email'] = email
+            session['user_agent'] = request.headers.get('User-Agent', '')
+            session['login_time'] = datetime.now().isoformat()
+            session['permanent'] = False  # Default to not remembered
             
             flash(f'Registration successful! Welcome to Employee Management System, {name}!', 'success')
             return redirect(url_for('dashboard'))
@@ -1596,8 +1666,13 @@ def report():
 
 @app.route('/logout')
 def logout():
+    # Store flash message before clearing session
+    flash_message = 'Logged out successfully'
+    if session.get('permanent'):
+        flash_message += '. Remember me has been disabled.'
+    
     session.clear()
-    flash('Logged out successfully', 'success')
+    flash(flash_message, 'success')
     return redirect(url_for('login'))
 
 # Error handlers
@@ -1619,43 +1694,46 @@ def favicon():
         mimetype=mimetype
     )
 
-# Update the 404 error handler
+# Error handlers
 @app.errorhandler(404)
 def not_found_error(error):
-    return """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Page Not Found</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-        <style>
-            body { background-color: #f8f9fa; }
-            .error-container { margin-top: 100px; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="row justify-content-center error-container">
-                <div class="col-md-6 text-center">
-                    <h1 class="display-1 text-primary">404</h1>
-                    <h2 class="mb-3">Oops! Page not found</h2>
-                    <p class="lead text-muted mb-4">
-                        The page you're looking for doesn't exist or has been moved.
-                    </p>
-                    <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
-                        <a href="/dashboard" class="btn btn-primary btn-lg px-4">Dashboard</a>
-                        <a href="/employees" class="btn btn-outline-secondary btn-lg px-4">Employees</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """, 404
+    return render_template('errors/error.html', 
+                         error_code=404,
+                         error_title="Page Not Found",
+                         error_message="The page you're looking for doesn't exist or has been moved.",
+                         error_icon="🔍"), 404
 
 @app.errorhandler(500)
 def internal_error(error):
-    return render_template('errors/500.html'), 500
+    return render_template('errors/error.html',
+                         error_code=500,
+                         error_title="Internal Server Error", 
+                         error_message="Something went wrong on our end. Please try again later.",
+                         error_icon="🚨"), 500
+
+@app.errorhandler(403)
+def forbidden_error(error):
+    return render_template('errors/error.html',
+                         error_code=403,
+                         error_title="Access Denied",
+                         error_message="You don't have permission to access this page.",
+                         error_icon="🚫"), 403
+
+@app.errorhandler(401)
+def unauthorized_error(error):
+    return render_template('errors/error.html',
+                         error_code=401,
+                         error_title="Unauthorized Access",
+                         error_message="Please log in to access this page.",
+                         error_icon="🔒"), 401
+
+@app.errorhandler(400)
+def bad_request_error(error):
+    return render_template('errors/error.html',
+                         error_code=400,
+                         error_title="Bad Request",
+                         error_message="The request could not be understood by the server.",
+                         error_icon="❌"), 400
 
 @app.route('/debug-email-config')
 def debug_email_config():
