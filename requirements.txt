@@ -5,5 +5,6 @@ bcrypt==4.0.1
 Pillow==11.0.0
 Werkzeug==2.3.6
 python-dotenv==1.0.0
-
-# pip install python-dotenv
+gunicorn==21.2.0
+mysqlclient==2.2.0
+cryptography==41.0.7

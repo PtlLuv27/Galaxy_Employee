@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 import secrets
 from werkzeug.utils import secure_filename
 from PIL import Image
+import logging
+import sys
 import math
 
 app = Flask(__name__)
@@ -64,6 +66,56 @@ def check_session_security():
     
     return None
 
+# Production configuration - Add this right after your helper functions
+if __name__ != '__main__':
+    # When running with Gunicorn
+    gunicorn_logger = logging.getLogger('gunicorn.error')
+    app.logger.handlers = gunicorn_logger.handlers
+    app.logger.setLevel(gunicorn_logger.level)
+    app.logger.info('Production mode: Gunicorn logger configured')
+
+# Database connection health check
+def init_db_connection():
+    """Initialize database connection with health check for production"""
+    try:
+        # Test database connection
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT 1")
+        cur.close()
+        app.logger.info('Database connection established successfully')
+        return True
+    except Exception as e:
+        app.logger.error(f'Database connection failed: {str(e)}')
+        # Don't raise exception to allow app to start and retry
+        return False
+
+# SSL configuration for Aiven MySQL - Add this to your Config class or here
+class ProductionConfig(Config):
+    MYSQL_SSL_MODE = 'REQUIRED'
+    MYSQL_SSL_CA = '/etc/ssl/certs/ca-certificates.crt'
+
+# Initialize database connection when app starts
+@app.before_first_request
+def initialize_database():
+    """Initialize database connection on first request"""
+    if init_db_connection():
+        app.logger.info('Application started successfully with database connection')
+    else:
+        app.logger.warning('Application started but database connection failed - will retry')
+
+# Health check endpoint for Render
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Render and load balancers"""
+    try:
+        # Test database connection
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT 1")
+        cur.close()
+        return jsonify({'status': 'healthy', 'database': 'connected'}), 200
+    except Exception as e:
+        return jsonify({'status': 'unhealthy', 'database': 'disconnected', 'error': str(e)}), 500
+
 # Security checks before each request
 @app.before_request
 def security_checks():
@@ -77,7 +129,6 @@ def security_checks():
     if security_result:
         return security_result
 
-@app.before_request
 @app.before_request
 def make_session_permanent():
     """Make session permanent for remembered users"""
