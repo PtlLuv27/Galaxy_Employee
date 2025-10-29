@@ -95,7 +95,7 @@ class ProductionConfig(Config):
     MYSQL_SSL_CA = '/etc/ssl/certs/ca-certificates.crt'
 
 # Initialize database connection when app starts
-@app.before_first_request
+@app.before_request
 def initialize_database():
     """Initialize database connection on first request"""
     if init_db_connection():
