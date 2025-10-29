@@ -29,3 +29,4 @@ class Config:
     MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER', 'luvpatel2707@gmail.com')
 
     PERMANENT_SESSION_LIFETIME = timedelta(days=30)
+    

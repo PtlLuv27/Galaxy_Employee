@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 import secrets
 from werkzeug.utils import secure_filename
 from PIL import Image
-from datetime import datetime, timedelta
 import math
 
 app = Flask(__name__)
@@ -79,16 +78,11 @@ def security_checks():
         return security_result
 
 @app.before_request
+@app.before_request
 def make_session_permanent():
     """Make session permanent for remembered users"""
     if 'user_id' in session and session.get('permanent', False):
         session.permanent = True
-        # Refresh the session if it's about to expire (within 7 days)
-        if 'session_refresh' not in session:
-            session['session_refresh'] = datetime.now()
-        elif (datetime.now() - session['session_refresh']).days >= 7:
-            session['session_refresh'] = datetime.now()
-
 # Routes
 @app.route('/')
 def index():
